@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Epicor BAQ WDC</title>
+  <script src="https://connectors.tableau.com/libs/tableauwdc-2.4.latest.min.js"></script>
+  <script src="script.js"></script>
+</head>
+
+<body>
+  <h2>Epicor BAQ → Tableau Connector</h2>
+
+  <label>Epicor User:</label><br>
+  <input type="text" id="user" size="30"><br><br>
+
+  <label>Epicor Password:</label><br>
+  <input type="password" id="password" size="30"><br><br>
+
+  <label>API Key (X-API-Key):</label><br>
+  <input type="text" id="apiKey" size="50"><br><br>
+
+  <label>URL del BAQ (endpoint OData):</label><br>
+  <input type="text" id="baqUrl" size="80">
+  <br><br>
+
+  <button onclick="submitWDC()">Conectar a Tableau</button>
+</body>
+
+</html>
