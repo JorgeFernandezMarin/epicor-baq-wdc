@@ -1,0 +1,23 @@
+{
+  "tableau_manifest_version": 1,
+  "name": "Epicor BAQ Connector",
+  "version": "1.0.0",
+  "description": "Connector for Epicor BAQs using OData v2 + API Key + Basic Auth.",
+  "vendor": {
+    "name": "Ripipsa",
+    "email": "ti@ripipsa.com",
+    "website": "https://ripipsa.com"
+  },
+  "permissions": {
+    "network": {
+      "allowed_domains": [
+        "https://centralusdtapp50.epicorsaas.com",
+        "https://centralusdtapp50.epicorsaas.com/SaaS5106/*"
+      ]
+    }
+  },
+  "connector": {
+    "script": "script.js",
+    "endpoint": "index.html"
+  }
+}
