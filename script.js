@@ -167,7 +167,9 @@ function submitWDC() {
         baqUrl: baqUrl
     };
 
-    tableau.connectionData = JSON.stringify(connData);
+    
     tableau.connectionName = "Epicor BAQ Connector";
+    tableau.connectionData = JSON.stringify(connData);
     tableau.submit();
 }
+
