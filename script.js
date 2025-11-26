@@ -45,15 +45,34 @@
                 var sample = data.value[0];
                 var cols = [];
 
+               // for (var key in sample) {
+               //     if (sample.hasOwnProperty(key)) {
+               //         cols.push({
+               //             id: key,
+               //             alias: key,
+               //             dataType: tableau.dataTypeEnum.string // todo como texto por ahora
+               //         });
+               //     }
+               // }
+
                 for (var key in sample) {
                     if (sample.hasOwnProperty(key)) {
+                
+                        var type = tableau.dataTypeEnum.string;
+                
+                        if (key === "InvcHead_CreatedOn") {
+                            type = tableau.dataTypeEnum.datetime;
+                        }
+                
                         cols.push({
                             id: key,
                             alias: key,
-                            dataType: tableau.dataTypeEnum.string // todo como texto por ahora
+                            dataType: type
                         });
                     }
                 }
+
+                  
 
                 var tableSchema = {
                     id: "EpicorBAQ",
@@ -172,4 +191,5 @@ function submitWDC() {
     tableau.connectionData = JSON.stringify(connData);
     tableau.submit();
 }
+
 
