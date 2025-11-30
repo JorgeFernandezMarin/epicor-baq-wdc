@@ -1,8 +1,8 @@
 {
   "tableau_manifest_version": 1,
-  "name": "Epicor BAQ Connector",
-  "version": "1.1.0",
-  "description": "Connector for Epicor BAQs through Azure Function proxy.",
+  "name": "Ripipsa – Epicor BAQ via Azure Function",
+  "version": "2.0.0",
+  "description": "Conector corporativo para consumir BAQs de Epicor a través de una Azure Function segura.",
   "vendor": {
     "name": "Ripipsa",
     "email": "ti@ripipsa.com",
@@ -11,9 +11,8 @@
   "permissions": {
     "network": {
       "allowed_domains": [
-        "https://centralusdtapp50.epicorsaas.com",
-        "https://centralusdtapp50.epicorsaas.com/SaaS5106/*",
-        "https://func-epicor-ripipsa-test-h2bha3hzcmeagwe3.centralus-01.azurewebsites.net"
+        "https://func-epicor-ripipsa-test-h2bha3hzcmeagwe3.centralus-01.azurewebsites.net",
+        "https://*.azurewebsites.net"
       ]
     }
   },
