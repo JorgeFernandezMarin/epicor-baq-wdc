@@ -1,195 +1,111 @@
 (function () {
 
-    var myConnector = tableau.makeConnector();
+  var myConnector = tableau.makeConnector();
 
-    // --- Init recomendado ---
-    myConnector.init = function (initCallback) {
-        initCallback();
-    };
+  myConnector.init = function (initCallback) {
+    initCallback();
+  };
 
-    // 1. Definir esquema dinámico tomando el primer registro
-    myConnector.getSchema = function (schemaCallback) {
+  // 1. Definir esquema leyendo el primer registro de value[]
+  myConnector.getSchema = function (schemaCallback) {
 
-        var connData = JSON.parse(tableau.connectionData);
-        var apiKey = connData.apiKey;
-        var baqUrl = connData.baqUrl;
-        var user = connData.user;
-        var password = connData.password;
+    var connData = JSON.parse(tableau.connectionData);
+    var funcUrl = connData.funcUrl;
 
-        // Aseguramos que solo pidamos 1 registro para el esquema
-        var schemaUrl = baqUrl;
-        if (schemaUrl.indexOf("$top=") === -1) {
-            schemaUrl += (schemaUrl.indexOf("?") === -1 ? "?" : "&") + "$top=1";
+    fetch(funcUrl)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+
+        if (!data.value || data.value.length === 0) {
+          tableau.abortWithError("La función no regresó registros en 'value'.");
+          return;
         }
 
-        var headers = {
-            "X-API-Key": apiKey,
-            "Accept": "application/json"
+        var sample = data.value[0];
+        var cols = [];
+
+        for (var key in sample) {
+          if (sample.hasOwnProperty(key)) {
+
+            var val = sample[key];
+            var type = tableau.dataTypeEnum.string;
+
+            // Heurísticas simples de tipo:
+            if (typeof val === "number") {
+              type = Number.isInteger(val)
+                ? tableau.dataTypeEnum.int
+                : tableau.dataTypeEnum.float;
+            } else if (val instanceof Date) {
+              type = tableau.dataTypeEnum.datetime;
+            } else if (typeof val === "string") {
+              // ejemplo específico:
+              if (key === "InvcHead_CreatedOn" || key.endsWith("Date") || key.endsWith("On")) {
+                // Tableau normalmente te manda '2025-11-30T00:00:00'
+                type = tableau.dataTypeEnum.datetime;
+              }
+            }
+
+            cols.push({
+              id: key,
+              alias: key,
+              dataType: type
+            });
+          }
+        }
+
+        var tableSchema = {
+          id: "EpicorBAQ",
+          alias: "Epicor BAQ Data (Azure Function)",
+          columns: cols
         };
 
-        // Agregamos Basic Auth si hay user/pass
-        if (user && password) {
-            var token = btoa(user + ":" + password);
-            headers["Authorization"] = "Basic " + token;
+        schemaCallback([tableSchema]);
+      })
+      .catch(function (err) {
+        tableau.abortWithError("Error al obtener esquema desde Azure Function: " + err);
+      });
+  };
+
+  // 2. Obtener datos completos desde la Function
+  myConnector.getData = function (table, doneCallback) {
+
+    var connData = JSON.parse(tableau.connectionData);
+    var funcUrl = connData.funcUrl;
+
+    fetch(funcUrl)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+
+        if (!data.value) {
+          tableau.abortWithError("Respuesta sin 'value' desde Azure Function.");
+          return;
         }
 
-        fetch(schemaUrl, { headers: headers })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
+        table.appendRows(data.value);
+        doneCallback();
+      })
+      .catch(function (err) {
+        tableau.abortWithError("Error al obtener datos desde Azure Function: " + err);
+      });
+  };
 
-                if (!data.value || data.value.length === 0) {
-                    tableau.abortWithError("El BAQ no regresó registros para definir el esquema.");
-                    return;
-                }
-
-                var sample = data.value[0];
-                var cols = [];
-
-               // for (var key in sample) {
-               //     if (sample.hasOwnProperty(key)) {
-               //         cols.push({
-               //             id: key,
-               //             alias: key,
-               //             dataType: tableau.dataTypeEnum.string // todo como texto por ahora
-               //         });
-               //     }
-               // }
-
-                for (var key in sample) {
-                    if (sample.hasOwnProperty(key)) {
-                
-                        var type = tableau.dataTypeEnum.string;
-                
-                        if (key === "InvcHead_CreatedOn") {
-                            type = tableau.dataTypeEnum.datetime;
-                        }
-                
-                        cols.push({
-                            id: key,
-                            alias: key,
-                            dataType: type
-                        });
-                    }
-                }
-
-                  
-
-                var tableSchema = {
-                    id: "EpicorBAQ",
-                    alias: "Epicor BAQ Data",
-                    columns: cols
-                };
-
-                schemaCallback([tableSchema]);
-            })
-            .catch(function (err) {
-                tableau.abortWithError("Error al obtener esquema: " + err);
-            });
-    };
-
-    //// 2. Descarga de datos con soporte para Extract Incremental
-
-    // myConnector.getData = function(table, doneCallback) {
-
-    //     let baqUrl = tableau.connectionData;
-
-    //     fetch(baqUrl, {
-    //         headers: {
-    //             "X-API-Key": document.getElementById("apiKey").value,
-    //             "Accept": "application/json"
-    //         }
-    //     })
-    //     .then(r => r.json())
-    //     .then(data => {
-    //         table.appendRows(data.value);
-    //         doneCallback();
-    //     });
-    // };
-
-    // 2. Descarga de datos con soporte para Extract Incremental
-    myConnector.getData = function (table, doneCallback) {
-
-        var connData = JSON.parse(tableau.connectionData);
-        var apiKey = connData.apiKey;
-        var baseUrl = connData.baqUrl; // sin filtros incrementales fijos
-        var user = connData.user;
-        var password = connData.password;
-
-        // campo incremental en Tableau
-        var incrFieldName = "InvcHead_CreatedOn"; //debe existir en el BAQ
-
-        // valor incremental que Tableau quiere usar
-        var lastIncrValue = table.incrementValue;  // puede ser null en carga inicial
-
-        // Construimos la URL final para este fetch
-        var url = baseUrl;
-
-        // Si viene valor incremental, agregamos $filter
-        if (lastIncrValue) {
-            // OData: LastChanged gt {valor}
-            // OJO con el formato: si LastChanged es datetime completo, Tableau te lo pasa tipo '2025-01-15T00:00:00'
-            // Dependiendo del formato, quizá requiera comillas. Si LastChanged es datetime,
-            // normalmente Tableau te manda algo tipo 2025-01-15T00:00:00.
-            var filter = incrFieldName + " gt datetime '" + lastIncrValue + "'";
-
-            // si ya trae ?, usamos &; si no, usamos ?
-            url += (url.indexOf("?") === -1 ? "?" : "&") + "$filter=" + filter;
-        }
-
-        var headers = {
-            "X-API-Key": apiKey,
-            "Accept": "application/json"
-        };
-
-        if (user && password) {
-            var token = btoa(user + ":" + password);
-            headers["Authorization"] = "Basic " + token;
-        }
-
-        fetch(url, { headers: headers })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-
-                if (!data.value) {
-                    tableau.abortWithError("Respuesta sin 'value' desde Epicor.");
-                    return;
-                }
-
-                table.appendRows(data.value);
-                doneCallback();
-            })
-            .catch(function (err) {
-                tableau.abortWithError("Error al obtener datos: " + err);
-            });
-    };
-
-
-    tableau.registerConnector(myConnector);
+  tableau.registerConnector(myConnector);
 
 })();
 
 function submitWDC() {
-    var user = document.getElementById("user").value.trim();
-    var password = document.getElementById("password").value.trim();
-    var apiKey = document.getElementById("apiKey").value.trim();
-    var baqUrl = document.getElementById("baqUrl").value.trim()
+  var funcUrl = document.getElementById("funcUrl").value.trim();
 
-    if (!apiKey || !baqUrl) {
-        alert("Debes ingresar API Key y URL.");
-        return;
-    }
+  if (!funcUrl) {
+    alert("Debes ingresar la URL de la Azure Function.");
+    return;
+  }
 
-    var connData = {
-        user: user,
-        password: password,
-        apiKey: apiKey,
-        baqUrl: baqUrl
-    };
+  var connData = {
+    funcUrl: funcUrl
+  };
 
-    
-    tableau.connectionName = "Epicor BAQ Connector";
-    tableau.connectionData = JSON.stringify(connData);
-    tableau.submit();
+  tableau.connectionName = "Epicor BAQ via Azure Function";
+  tableau.connectionData = JSON.stringify(connData);
+  tableau.submit();
 }
-
-
