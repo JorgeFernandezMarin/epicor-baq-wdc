@@ -1,22 +1,144 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Epicor BAQ WDC (Azure Function)</title>
+  <title>Ripipsa – Epicor BAQ via Azure Function</title>
+
   <script src="https://connectors.tableau.com/libs/tableauwdc-2.4.latest.min.js"></script>
   <script src="script.js"></script>
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f5f7;
+      margin: 0;
+      padding: 0;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      padding: 32px 40px;
+      width: 520px;
+      max-width: 95%;
+    }
+
+    .logo {
+      font-weight: 700;
+      color: #005f9e;  /* azul tipo corporativo */
+      font-size: 18px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 8px 0 4px;
+      font-size: 22px;
+      color: #222;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 24px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+      margin-top: 16px;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #d0d4dd;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+
+    input[type="text"]:focus {
+      border-color: #005f9e;
+      outline: none;
+      box-shadow: 0 0 0 1px rgba(0,95,158,0.15);
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    .footer {
+      margin-top: 24px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    button {
+      background: #005f9e;
+      color: #fff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #004676;
+    }
+  </style>
 </head>
 
 <body>
-  <h2>Epicor BAQ → Tableau via Azure Function</h2>
+  <div class="page">
+    <div class="card">
+      <div class="logo">RIPIPSA · DATA</div>
+      <h1>Epicor BAQ Connector</h1>
+      <div class="subtitle">
+        Conecta BAQs de Epicor a Tableau a través de una Azure Function segura.
+      </div>
 
-  <label>URL de la Azure Function:</label><br>
-  <input type="text" id="funcUrl" size="100"
-         placeholder="https://func-epicor-ripipsa-test-....azurewebsites.net/api/EpicorBAQProxy?code=..." />
-  <br><br>
+      <label for="functionUrl">URL de Azure Function</label>
+      <input
+        type="text"
+        id="functionUrl"
+        placeholder="https://func-epicor-ripipsa-test-...azurewebsites.net/api/EpicorBAQProxy?code=..."
+      />
+      <div class="hint">
+        Usa la URL completa de la función (incluyendo el parámetro <code>code=</code>).
+      </div>
 
-  <button onclick="submitWDC()">Conectar a Tableau</button>
+      <label for="baqName">Nombre lógico del BAQ (opcional)</label>
+      <input
+        type="text"
+        id="baqName"
+        placeholder="RipVentasDetalle_v14B"
+      />
+      <div class="hint">
+        Solo se usa para nombrar la conexión en Tableau (no afecta la consulta real).
+      </div>
+
+      <div class="footer">
+        <button type="button" onclick="submitWDC()">
+          Conectar con Tableau
+        </button>
+      </div>
+    </div>
+  </div>
 </body>
-
 </html>
