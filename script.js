@@ -1,111 +1,119 @@
 (function () {
 
-  var myConnector = tableau.makeConnector();
+    var myConnector = tableau.makeConnector();
 
-  myConnector.init = function (initCallback) {
-    initCallback();
-  };
+    // Init básico
+    myConnector.init = function (initCallback) {
+        initCallback();
 
-  // 1. Definir esquema leyendo el primer registro de value[]
-  myConnector.getSchema = function (schemaCallback) {
-
-    var connData = JSON.parse(tableau.connectionData);
-    var funcUrl = connData.funcUrl;
-
-    fetch(funcUrl)
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-
-        if (!data.value || data.value.length === 0) {
-          tableau.abortWithError("La función no regresó registros en 'value'.");
-          return;
+        // Para Extract Refresh en Server/Cloud
+        if (tableau.phase === tableau.phaseEnum.gatherDataPhase) {
+            tableau.submit();
         }
+    };
 
-        var sample = data.value[0];
-        var cols = [];
+    // --- 1) Definir esquema leyendo un sample de la función ---
+    myConnector.getSchema = function (schemaCallback) {
 
-        for (var key in sample) {
-          if (sample.hasOwnProperty(key)) {
+        var connData = JSON.parse(tableau.connectionData);
+        var url = connData.functionUrl;   // URL completa de la Azure Function
 
-            var val = sample[key];
-            var type = tableau.dataTypeEnum.string;
+        fetch(url)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
 
-            // Heurísticas simples de tipo:
-            if (typeof val === "number") {
-              type = Number.isInteger(val)
-                ? tableau.dataTypeEnum.int
-                : tableau.dataTypeEnum.float;
-            } else if (val instanceof Date) {
-              type = tableau.dataTypeEnum.datetime;
-            } else if (typeof val === "string") {
-              // ejemplo específico:
-              if (key === "InvcHead_CreatedOn" || key.endsWith("Date") || key.endsWith("On")) {
-                // Tableau normalmente te manda '2025-11-30T00:00:00'
-                type = tableau.dataTypeEnum.datetime;
-              }
-            }
+                if (!data.value || data.value.length === 0) {
+                    tableau.abortWithError(
+                        "La Azure Function no devolvió registros para definir el esquema."
+                    );
+                    return;
+                }
 
-            cols.push({
-              id: key,
-              alias: key,
-              dataType: type
+                var sample = data.value[0];
+                var cols = [];
+
+                for (var key in sample) {
+                    if (!sample.hasOwnProperty(key)) continue;
+
+                    var value = sample[key];
+                    var type = tableau.dataTypeEnum.string;
+
+                    // Heurística sencilla para tipos
+                    if (key === "InvcHead_CreatedOn") {
+                        type = tableau.dataTypeEnum.datetime;
+                    } else if (typeof value === "number") {
+                        type = tableau.dataTypeEnum.float;
+                    }
+
+                    cols.push({
+                        id: key,
+                        alias: key,
+                        dataType: type
+                    });
+                }
+
+                var tableSchema = {
+                    id: "EpicorBAQ",
+                    alias: connData.baqFriendlyName || "Epicor BAQ Data (Azure Function)",
+                    columns: cols
+                };
+
+                schemaCallback([tableSchema]);
+            })
+            .catch(function (err) {
+                tableau.abortWithError(
+                    "Error al obtener esquema desde Azure Function: " + err
+                );
             });
-          }
-        }
+    };
 
-        var tableSchema = {
-          id: "EpicorBAQ",
-          alias: "Epicor BAQ Data (Azure Function)",
-          columns: cols
-        };
+    // --- 2) Descarga de datos (full extract por ahora) ---
+    myConnector.getData = function (table, doneCallback) {
 
-        schemaCallback([tableSchema]);
-      })
-      .catch(function (err) {
-        tableau.abortWithError("Error al obtener esquema desde Azure Function: " + err);
-      });
-  };
+        var connData = JSON.parse(tableau.connectionData);
+        var url = connData.functionUrl;
 
-  // 2. Obtener datos completos desde la Function
-  myConnector.getData = function (table, doneCallback) {
+        fetch(url)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
 
-    var connData = JSON.parse(tableau.connectionData);
-    var funcUrl = connData.funcUrl;
+                if (!data.value) {
+                    tableau.abortWithError("Respuesta sin 'value' desde Azure Function.");
+                    return;
+                }
 
-    fetch(funcUrl)
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
+                table.appendRows(data.value);
+                doneCallback();
+            })
+            .catch(function (err) {
+                tableau.abortWithError(
+                    "Error al obtener datos desde Azure Function: " + err
+                );
+            });
+    };
 
-        if (!data.value) {
-          tableau.abortWithError("Respuesta sin 'value' desde Azure Function.");
-          return;
-        }
-
-        table.appendRows(data.value);
-        doneCallback();
-      })
-      .catch(function (err) {
-        tableau.abortWithError("Error al obtener datos desde Azure Function: " + err);
-      });
-  };
-
-  tableau.registerConnector(myConnector);
+    tableau.registerConnector(myConnector);
 
 })();
 
+// --- UI: leer datos del formulario y crear la conexión ---
 function submitWDC() {
-  var funcUrl = document.getElementById("funcUrl").value.trim();
+    var fnUrl = document.getElementById("functionUrl").value.trim();
+    var baqName = document.getElementById("baqName").value.trim();
 
-  if (!funcUrl) {
-    alert("Debes ingresar la URL de la Azure Function.");
-    return;
-  }
+    if (!fnUrl) {
+        alert("Debes ingresar la URL de la Azure Function.");
+        return;
+    }
 
-  var connData = {
-    funcUrl: funcUrl
-  };
+    var connData = {
+        functionUrl: fnUrl,
+        baqFriendlyName: baqName || "Epicor BAQ"
+    };
 
-  tableau.connectionName = "Epicor BAQ via Azure Function";
-  tableau.connectionData = JSON.stringify(connData);
-  tableau.submit();
+    tableau.connectionName =
+        "Epicor BAQ via Azure Function – " + (baqName || "Sin nombre");
+    tableau.connectionData = JSON.stringify(connData);
+
+    tableau.submit();
 }
