@@ -3,7 +3,7 @@
 
     // -------- INIT ----------
     myConnector.init = function (initCallback) {
-        // Si ya hay datos guardados, repoblamos inputs
+        // Rellenar campos si ya había conexión guardada
         if (tableau.connectionData) {
             try {
                 var saved = JSON.parse(tableau.connectionData);
@@ -23,6 +23,7 @@
 
         initCallback();
 
+        // Cuando Tableau está en gatherDataPhase y ya hay conexión, solo enviamos
         if (tableau.phase === tableau.phaseEnum.gatherDataPhase) {
             tableau.submit();
         }
@@ -31,9 +32,9 @@
     // -------- SCHEMA ----------
     myConnector.getSchema = function (schemaCallback) {
         var connData = JSON.parse(tableau.connectionData);
-        var funcUrl = connData.funcUrl;
-        var baqName = connData.baqName;
-        var incrField = connData.incrField;
+        var funcUrl   = connData.funcUrl;
+        var baqName   = connData.baqName;
+        var incrField = connData.incrField;   // por ej. "InvcHead_CreatedOn"
 
         // Pedimos solo 1 registro para deducir tipos
         var url = buildUrl(funcUrl, {
@@ -41,9 +42,11 @@
             "$top": 1
         });
 
+        console.log("getSchema URL:", url);
+
         fetch(url)
             .then(function (r) {
-                return r.text();   // primero como texto para poder debuggear
+                return r.text();   // primero texto, por si hay que debuggear
             })
             .then(function (txt) {
                 if (!txt) {
@@ -72,11 +75,14 @@
 
                     // Heurística de tipos
                     if (key === incrField) {
+                        // nuestra columna incremental (datetime)
                         type = tableau.dataTypeEnum.datetime;
                     } else if (value instanceof Date) {
                         type = tableau.dataTypeEnum.datetime;
                     } else if (typeof value === "number") {
-                        type = Number.isInteger(value) ? tableau.dataTypeEnum.int : tableau.dataTypeEnum.float;
+                        type = Number.isInteger(value)
+                            ? tableau.dataTypeEnum.int
+                            : tableau.dataTypeEnum.float;
                     } else if (typeof value === "boolean") {
                         type = tableau.dataTypeEnum.bool;
                     } else if (looksLikeDateTime(value)) {
@@ -84,16 +90,18 @@
                     }
 
                     cols.push({
-                        id: key,
+                        id: key,        // ojo: aquí el id REAL del campo (p.ej. "InvcHead_CreatedOn")
                         alias: key,
                         dataType: type
                     });
                 });
 
+                // 👇 CLAVE para incremental: incrementColumnId
                 var tableSchema = {
                     id: "EpicorBAQ",
                     alias: "Epicor BAQ via Azure Function",
-                    columns: cols
+                    columns: cols,
+                    incrementColumnId: incrField   // <-- habilita incremental en Tableau【tableInfo.incrementColumnId】
                 };
 
                 schemaCallback([tableSchema]);
@@ -106,19 +114,22 @@
     // -------- DATA ----------
     myConnector.getData = function (table, doneCallback) {
         var connData = JSON.parse(tableau.connectionData);
-        var funcUrl = connData.funcUrl;
-        var baqName = connData.baqName;
+        var funcUrl   = connData.funcUrl;
+        var baqName   = connData.baqName;
         var incrField = connData.incrField;
 
-        var lastValue = table.incrementValue;  // valor incremental que Tableau nos pasa
+        // valor incremental que Tableau nos pasa (último valor de incrementColumnId)
+        var lastValue = table.incrementValue;
         var params = { baq: baqName };
 
         if (lastValue) {
+            // OData filter: InvcHead_CreatedOn gt datetime 'YYYY-MM-DDTHH:MM:SS'
             var filter = incrField + " gt datetime '" + lastValue + "'";
             params["$filter"] = filter;
         }
 
         var url = buildUrl(funcUrl, params);
+        console.log("getData URL:", url, "lastValue:", lastValue);
 
         fetch(url)
             .then(function (r) {
@@ -154,7 +165,6 @@
 
     // -------- Helpers --------
 
-    // Construye correctamente la URL respetando si ya trae ? o no
     function buildUrl(base, obj) {
         var parts = [];
         for (var k in obj) {
@@ -170,6 +180,7 @@
 
     function looksLikeDateTime(v) {
         if (typeof v !== "string") return false;
+        // 2025-11-30T19:17:29
         return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v);
     }
 })();
@@ -178,7 +189,7 @@
 function submitWDC() {
     var funcUrl = document.getElementById("funcUrl").value.trim();
     var baqName = document.getElementById("baqName").value.trim();
-    var incrField = document.getElementById("incrField").value.trim() || "InvcHead_CreatedOn";
+    var incrField = (document.getElementById("incrField").value.trim() || "InvcHead_CreatedOn");
 
     if (!funcUrl || !baqName) {
         alert("Debes ingresar la URL de la Azure Function y el nombre del BAQ.");
@@ -193,7 +204,7 @@ function submitWDC() {
 
     tableau.connectionName = "Epicor BAQ via Azure Function";
     tableau.connectionData = JSON.stringify(connData);
-    tableau.incrementalExtractColumn = incrField;
 
+    // Ya NO usamos tableau.incrementalExtractColumn; lo controla incrementColumnId en getSchema
     tableau.submit();
 }
