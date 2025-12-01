@@ -1,8 +1,8 @@
 {
   "tableau_manifest_version": 1,
-  "name": "Ripipsa – Epicor BAQ via Azure Function",
-  "version": "2.0.0",
-  "description": "Conector corporativo para consumir BAQs de Epicor a través de una Azure Function segura.",
+  "name": "Epicor BAQ via Azure Function",
+  "version": "1.0.0",
+  "description": "Conecta Tableau a BAQs de Epicor mediante una Azure Function proxy (sin usuario/contraseña en el WDC).",
   "vendor": {
     "name": "Ripipsa",
     "email": "ti@ripipsa.com",
@@ -12,7 +12,8 @@
     "network": {
       "allowed_domains": [
         "https://func-epicor-ripipsa-test-h2bha3hzcmeagwe3.centralus-01.azurewebsites.net",
-        "https://*.azurewebsites.net"
+        "https://centralusdtapp50.epicorsaas.com",
+        "https://centralusdtapp50.epicorsaas.com/SaaS5106/*"
       ]
     }
   },
