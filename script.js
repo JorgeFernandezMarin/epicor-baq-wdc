@@ -3,7 +3,7 @@
 
     // -------- INIT ----------
     myConnector.init = function (initCallback) {
-        // Si ya hay datos guardados, repoblamos inputs para que sea más cómodo
+        // Si ya hay datos guardados, repoblamos inputs
         if (tableau.connectionData) {
             try {
                 var saved = JSON.parse(tableau.connectionData);
@@ -23,7 +23,6 @@
 
         initCallback();
 
-        // Si estamos en fase de obtención de datos, Tableau llama directamente sin UI
         if (tableau.phase === tableau.phaseEnum.gatherDataPhase) {
             tableau.submit();
         }
@@ -37,14 +36,28 @@
         var incrField = connData.incrField;
 
         // Pedimos solo 1 registro para deducir tipos
-        var url = funcUrl + buildQueryString({
+        var url = buildUrl(funcUrl, {
             baq: baqName,
             "$top": 1
         });
 
         fetch(url)
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
+            .then(function (r) {
+                return r.text();   // primero como texto para poder debuggear
+            })
+            .then(function (txt) {
+                if (!txt) {
+                    throw new Error("Respuesta vacía desde Azure Function (URL: " + url + ")");
+                }
+
+                var data;
+                try {
+                    data = JSON.parse(txt);
+                } catch (e) {
+                    console.error("Respuesta no-JSON desde Azure Function:", txt);
+                    throw new Error("Respuesta no-JSON desde Azure Function. Detalle: " + e.message);
+                }
+
                 if (!data.value || data.value.length === 0) {
                     tableau.abortWithError("La función no regresó registros para definir el esquema.");
                     return;
@@ -100,18 +113,30 @@
         var lastValue = table.incrementValue;  // valor incremental que Tableau nos pasa
         var params = { baq: baqName };
 
-        // Si viene valor incremental, agregamos filtro OData
         if (lastValue) {
-            // OData datetime literal
             var filter = incrField + " gt datetime '" + lastValue + "'";
             params["$filter"] = filter;
         }
 
-        var url = funcUrl + buildQueryString(params);
+        var url = buildUrl(funcUrl, params);
 
         fetch(url)
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
+            .then(function (r) {
+                return r.text();
+            })
+            .then(function (txt) {
+                if (!txt) {
+                    throw new Error("Respuesta vacía desde Azure Function (URL: " + url + ")");
+                }
+
+                var data;
+                try {
+                    data = JSON.parse(txt);
+                } catch (e) {
+                    console.error("Respuesta no-JSON desde Azure Function:", txt);
+                    throw new Error("Respuesta no-JSON desde Azure Function. Detalle: " + e.message);
+                }
+
                 if (!data.value) {
                     tableau.abortWithError("Respuesta sin 'value' desde Azure Function.");
                     return;
@@ -128,19 +153,23 @@
     tableau.registerConnector(myConnector);
 
     // -------- Helpers --------
-    function buildQueryString(obj) {
+
+    // Construye correctamente la URL respetando si ya trae ? o no
+    function buildUrl(base, obj) {
         var parts = [];
         for (var k in obj) {
             if (!obj.hasOwnProperty(k)) continue;
             if (obj[k] === undefined || obj[k] === null || obj[k] === "") continue;
             parts.push(encodeURIComponent(k) + "=" + encodeURIComponent(obj[k]));
         }
-        return parts.length ? "?" + parts.join("&") : "";
+        if (!parts.length) return base;
+
+        var sep = base.indexOf("?") === -1 ? "?" : "&";
+        return base + sep + parts.join("&");
     }
 
     function looksLikeDateTime(v) {
         if (typeof v !== "string") return false;
-        // Ejemplos: "2025-11-30T00:00:00-06:00", "2025-11-30T00:00:00"
         return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v);
     }
 })();
@@ -164,8 +193,6 @@ function submitWDC() {
 
     tableau.connectionName = "Epicor BAQ via Azure Function";
     tableau.connectionData = JSON.stringify(connData);
-
-    // Indicamos a Tableau qué campo se usará para incremental extract
     tableau.incrementalExtractColumn = incrField;
 
     tableau.submit();
